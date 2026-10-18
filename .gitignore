@@ -6,3 +6,5 @@
 **/.env.*
 dist/
 .vite/
+debug-groq*.js
+probe-groq-models.js
