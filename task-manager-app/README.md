@@ -9,28 +9,36 @@ task-manager-app/
 ├── backend/
 │   ├── src/
 │   │   ├── config/
-│   │   │   └── db.js
+│   │   │   └── db.js              # MongoDB connection
 │   │   ├── controllers/
-│   │   │   ├── taskController.js
-│   │   │   └── aiController.js
+│   │   │   └── taskController.js  # All 5 CRUD operations + validation
 │   │   ├── models/
-│   │   │   └── Task.js
+│   │   │   └── Task.js            # Mongoose schema (title, description, status, dueDate)
 │   │   ├── routes/
-│   │   │   ├── taskRoutes.js
-│   │   │   └── aiRoutes.js
-│   │   ├── middlewares/
-│   │   └── server.js
+│   │   │   ├── taskRoutes.js      # /api/tasks
+│   │   │   └── aiRoutes.js        # /api/ai/plan-task
+│   │   └── server.js              # Express app, middleware, error handler
 │   ├── .env.example
-│   ├── .env
-│   ├── package.json
-│   └── README.md
+│   ├── .env                       # local only, git-ignored
+│   └── package.json
 ├── frontend/
-│   ├── public/
 │   ├── src/
 │   │   ├── components/
-│   │   └── App.js
+│   │   │   ├── TaskForm.jsx       # Add / edit task form
+│   │   │   ├── TaskList.jsx       # Task list with actions
+│   │   │   └── AIPlanner.jsx      # AI plan generator UI
+│   │   ├── App.jsx                # State + API calls
+│   │   ├── main.jsx
+│   │   └── index.css
+│   ├── index.html
+│   ├── vite.config.js             # dev proxy /api -> :5001
 │   └── package.json
-└── docs/
+├── docs/
+│   ├── postman-collection.md
+│   └── test-ai.js
+├── Task_Manager_API.postman_collection.json
+├── render.yaml                    # Render deployment config
+└── README.md
 ```
 
 ## Backend Setup
@@ -100,6 +108,29 @@ POST http://localhost:5000/api/ai/plan-task
   "description": "I need to build a portfolio website within three days."
 }
 ```
+
+## How the AI API Was Integrated (Part 2 Explanation)
+
+The backend integrates **Groq** (`https://api.groq.com/openai/v1/chat/completions`) as the external AI provider:
+
+1. **Endpoint** — `POST /api/ai/plan-task` in `backend/src/routes/aiRoutes.js` accepts `{ "description": "..." }`.
+2. **Key storage** — the key lives only in `backend/.env` as `GROQ_API_KEY` and is read via `process.env`. It is never sent to the frontend, never hard-coded, and `.env` is git-ignored so it is not uploaded to GitHub.
+3. **Prompting** — the description is embedded in a system-style prompt that instructs the model to return **only** a JSON object with `summary`, `priority` (`low|medium|high`), `estimatedHours` (number) and `steps` (array of actionable steps).
+4. **Model fallback** — the code tries `openai/gpt-oss-20b`, then `llama-3.1-8b-instant`, then `llama-3.3-70b-versatile`, so a deprecated/quota-limited model does not break the endpoint.
+5. **Response handling** — markdown fences are stripped, `JSON.parse`d, then structurally validated before being returned as `{ success: true, plan: {...} }`.
+6. **Error handling** — empty/missing description → `400`; missing key → `500`; unparseable or malformed AI output → `500`; upstream API failure → `500` with a clear message. A 30s timeout prevents hangs.
+
+## Deployment (Render)
+
+Config is in `render.yaml` (build: `cd backend && npm install`, start: `cd backend && npm start`).
+
+Environment variables to set on Render:
+- `MONGODB_URI` — MongoDB Atlas connection string
+- `GROQ_API_KEY` — Groq key
+- `NODE_ENV` = `production`
+- `PORT` = `10000` (set by render.yaml)
+
+**Live API URL:** _filled in below after deployment_
 
 ## Features
 - ✅ Complete CRUD operations for tasks
